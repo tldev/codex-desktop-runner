@@ -11,7 +11,7 @@ import { bootstrap } from './bootstrap.ts';
 import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
 import { contract } from './schema.ts';
-import { snapshot, report, instructions } from './reporting.ts';
+import { snapshot, report, instructions, prepareReporting } from './reporting.ts';
 const exec = promisify(execFile);
 const codexHome = process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
 const root = process.env.CDR_HOME ?? path.join(homedir(), '.local/state/codex-desktop-runner');
@@ -92,11 +92,18 @@ async function start(): Promise<void> {
   try {
     const probe = await IPC.connect(socket);
     probe.close();
-    await bootstrap(binary, cwd, title, async (thread) => {
-      run.threadId = stringField(thread, 'id');
-      if (typeof thread.path === 'string') run.transcript = thread.path;
-      await save(root, run);
-    });
+    const reportDirectory = run.contract ? prepareReporting(root, run.id) : undefined;
+    await bootstrap(
+      binary,
+      cwd,
+      title,
+      async (thread) => {
+        run.threadId = stringField(thread, 'id');
+        if (typeof thread.path === 'string') run.transcript = thread.path;
+        await save(root, run);
+      },
+      reportDirectory,
+    );
     await exec('open', ['-a', app, `codex://threads/${run.threadId}`]);
     const ipc = await IPC.connect(socket);
     try {
@@ -194,8 +201,8 @@ async function cancel(run: Run): Promise<void> {
     const target = await owner(ipc, run.threadId);
     await ipc.request(
       'thread-follower-interrupt-turn',
-      { conversationId: run.threadId },
-      2,
+      { conversationId: run.threadId, mode: 'user-stop', expectedTurnId: run.turnId },
+      4,
       target,
     );
   } finally {

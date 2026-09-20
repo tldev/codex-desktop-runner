@@ -2,12 +2,50 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { object, stringField, type Message } from './ipc.ts';
 
+export function threadParameters(cwd: string, reportDirectory?: string): Message {
+  return {
+    cwd,
+    approvalPolicy: 'on-request',
+    ...(reportDirectory
+      ? {
+          config: {
+            default_permissions: 'cdr-report',
+            permissions: {
+              'cdr-report': {
+                extends: ':read-only',
+                filesystem: { [reportDirectory]: 'write' },
+                network: { enabled: false },
+              },
+            },
+          },
+        }
+      : { sandbox: 'read-only' }),
+  };
+}
+
+export function verifyReportingPermissions(started: Message, directory: string): void {
+  const sandbox = object(started.sandbox);
+  const profile = object(started.activePermissionProfile);
+  if (
+    profile.id !== 'cdr-report' ||
+    profile.extends !== ':read-only' ||
+    started.approvalPolicy !== 'on-request' ||
+    sandbox.type !== 'workspaceWrite' ||
+    sandbox.networkAccess !== false ||
+    sandbox.excludeTmpdirEnvVar !== true ||
+    sandbox.excludeSlashTmp !== true ||
+    JSON.stringify(sandbox.writableRoots) !== JSON.stringify([directory])
+  )
+    throw new Error('Runtime did not apply the scoped reporting permission profile');
+}
+
 // Only this short-lived child is stopped. Never stop the desktop-owned runtime.
 export async function bootstrap(
   binary: string,
   cwd: string,
   title: string,
   onThread: (thread: Message) => Promise<void>,
+  reportDirectory?: string,
 ): Promise<Message> {
   const child = spawn(binary, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
   let stderr = '';
@@ -70,11 +108,8 @@ export async function bootstrap(
   try {
     await request('initialize', { clientInfo: { name: 'codex_desktop_runner', version: '0.1.0' } });
     send({ method: 'initialized', params: {} });
-    const started = await request('thread/start', {
-      cwd,
-      approvalPolicy: 'on-request',
-      sandbox: 'read-only',
-    });
+    const started = await request('thread/start', threadParameters(cwd, reportDirectory));
+    if (reportDirectory) verifyReportingPermissions(started, reportDirectory);
     const thread = object(started.thread);
     const threadId = stringField(thread, 'id');
     await onThread(thread);
