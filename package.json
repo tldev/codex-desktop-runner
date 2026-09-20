@@ -1,0 +1,36 @@
+{
+  "name": "codex-desktop-runner",
+  "version": "0.1.0",
+  "description": "Run and observe tasks in the existing Codex desktop app through local IPC",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "codex-desktop-runner": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --test test/*.test.ts",
+    "check": "tsc --noEmit && npm run lint && npm run format:check && npm test",
+    "prepare": "npm run build",
+    "lint": "eslint src test --max-warnings 0",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "audit": "npm audit --audit-level=moderate"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.11.0",
+    "prettier": "^3.9.8",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.70.0"
+  }
+}
