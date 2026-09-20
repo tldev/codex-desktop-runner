@@ -124,3 +124,13 @@ list properties, required fields, and forbid additional properties. Schemas are 
 to 12 levels; batches to 50 records; runs to 250 records and 2 MB of reporting data.
 The host application's semantic checks, authorization, scheduling, browser serialization,
 and interpretation of outcomes remain the caller's responsibility.
+
+Contracted jobs receive a per-thread permission profile extending read-only, with
+writes limited to their private `reports/RUN_ID` directory. Shell network access
+remains disabled and approvals stay on-request. The launcher verifies the returned
+profile before handing the task to the desktop. Reporting instructions put private
+JSON payloads in that directory and use the normal sandbox. Desktop global settings
+are unchanged. Older jobs retain access to their original report snapshots.
+
+Cancellation uses interrupt protocol v4 with the expected turn ID, so a later turn
+in the same conversation cannot accidentally be interrupted.

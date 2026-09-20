@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { contract, validate, type Schema } from '../src/schema.ts';
+import { threadParameters, verifyReportingPermissions } from '../src/bootstrap.ts';
 import { reserve } from '../src/store.ts';
-import { report, snapshot } from '../src/reporting.ts';
+import { report, snapshot, prepareReporting } from '../src/reporting.ts';
 const schema: Schema = {
   type: 'object',
   properties: { id: { type: 'string', minLength: 1 }, count: { type: 'integer', minimum: 0 } },
@@ -34,6 +35,7 @@ test('reports are durable, idempotent, atomic and final', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'cdr-report-'));
   try {
     const { run } = await reserve(root, 'example', 'prompt', '/tmp', 'test', spec);
+    prepareReporting(root, run.id);
     run.submittedAt = new Date().toISOString();
     report(root, run, 'report', 'p1', { id: 'phase', count: 1 });
     assert.equal(report(root, run, 'report', 'p1', { id: 'phase', count: 1 }).version, 1);
@@ -58,6 +60,60 @@ test('reports are durable, idempotent, atomic and final', async () => {
         progress: { type: 'boolean' },
       }),
     );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('reporting profile keeps the project read-only and refuses broader runtime grants', () => {
+  const directory = '/private/tmp/report';
+  const params = threadParameters('/project', directory);
+  assert.equal(params.sandbox, undefined);
+  assert.equal(threadParameters('/project').sandbox, 'read-only');
+  assert.deepEqual(params.config.permissions['cdr-report'].filesystem, { [directory]: 'write' });
+  const response = {
+    approvalPolicy: 'on-request',
+    activePermissionProfile: { id: 'cdr-report', extends: ':read-only' },
+    sandbox: {
+      type: 'workspaceWrite',
+      writableRoots: [directory],
+      networkAccess: false,
+      excludeTmpdirEnvVar: true,
+      excludeSlashTmp: true,
+    },
+  };
+  verifyReportingPermissions(response, directory);
+  for (const override of [
+    { networkAccess: true },
+    { writableRoots: [directory, '/project'] },
+    { excludeSlashTmp: false },
+  ]) {
+    assert.throws(
+      () =>
+        verifyReportingPermissions(
+          { ...response, sandbox: { ...response.sandbox, ...override } },
+          directory,
+        ),
+      /scoped reporting/,
+    );
+  }
+});
+
+test('new run reports have separate private directories and preserve legacy snapshots', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'cdr-isolation-'));
+  try {
+    const { run: legacy } = await reserve(root, 'legacy', 'prompt', '/tmp', 'test', spec);
+    legacy.submittedAt = new Date().toISOString();
+    report(root, legacy, 'report', 'p1', { id: 'legacy', count: 1 });
+    const { run } = await reserve(root, 'isolated', 'prompt', '/tmp', 'test', spec);
+    const directory = prepareReporting(root, run.id);
+    run.submittedAt = legacy.submittedAt;
+    report(root, run, 'report', 'p1', { id: 'isolated', count: 2 });
+    assert.equal((await stat(directory)).mode & 0o777, 0o700);
+    assert.equal((await stat(path.join(directory, 'reporting.sqlite'))).mode & 0o777, 0o600);
+    assert.deepEqual(snapshot(root, legacy.id).progress, { id: 'legacy', count: 1 });
+    assert.deepEqual(snapshot(root, run.id).progress, { id: 'isolated', count: 2 });
+    assert.throws(() => prepareReporting(root, '../escape'), /Invalid run id/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
