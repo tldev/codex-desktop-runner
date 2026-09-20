@@ -32,6 +32,18 @@ jobs:
           languages: javascript-typescript
           queries: security-extended
       - uses: github/codeql-action/analyze@ed1a0fa18ac745d017ca370dd4ef08bba3b4f504 # v3
+        with:
+          wait-for-processing: true
+      - name: Fail on actionable CodeQL alerts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          findings=$(gh api --paginate "repos/$GITHUB_REPOSITORY/code-scanning/alerts?state=open&ref=$GITHUB_REF" --jq '.[] | select(.rule.security_severity_level == "critical" or .rule.security_severity_level == "high" or .rule.security_severity_level == "medium" or .rule.severity == "error") | .html_url')
+          if [ -n "$findings" ]; then
+            printf '%s\n' "$findings"
+            exit 1
+          fi
   dependency-review:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest

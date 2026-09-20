@@ -164,6 +164,8 @@ async function cancel(run: Run): Promise<void> {
   }
   if (!run.threadId || !run.turnId)
     throw new Error('Cannot safely cancel without a known thread and turn');
+  if (run.activeTurnId !== run.turnId)
+    throw new Error('Refusing to interrupt a different or unconfirmed active turn');
   const ipc = await IPC.connect(socket);
   try {
     const target = await owner(ipc, run.threadId);

@@ -52,11 +52,13 @@ export function inspect(run: Run, text: string): Run {
   for (const event of parseEvents(text)) {
     const p = event.payload;
     if (p.type === 'task_started') {
+      result.activeTurnId = p.turn_id;
       if (!result.turnId && result.submittedAt && event.timestamp >= result.submittedAt)
         result.turnId = p.turn_id;
       active = Boolean(result.turnId && p.turn_id === result.turnId);
       if (active) result.state = 'running';
     }
+    if (p.type === 'task_complete' || p.type === 'turn_aborted') result.activeTurnId = undefined;
     if (!active) continue;
     countTools(result, event);
     updateText(result, event);
