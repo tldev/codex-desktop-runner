@@ -12,6 +12,7 @@ export interface Run {
   prompt: string;
   threadId?: string;
   turnId?: string;
+  activeTurnId?: string;
   transcript?: string;
   submittedAt?: string;
   error?: string;
