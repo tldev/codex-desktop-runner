@@ -10,6 +10,8 @@ import { IPC, turnPayload, object, stringField } from './ipc.ts';
 import { bootstrap } from './bootstrap.ts';
 import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
+import { contract } from './schema.ts';
+import { snapshot, report, instructions } from './reporting.ts';
 const exec = promisify(execFile);
 const codexHome = process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
 const root = process.env.CDR_HOME ?? path.join(homedir(), '.local/state/codex-desktop-runner');
@@ -20,6 +22,9 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     cwd: { type: 'string' },
+    'job-file': { type: 'string' },
+    'json-file': { type: 'string' },
+    'update-id': { type: 'string' },
     title: { type: 'string' },
     'prompt-file': { type: 'string' },
     'request-id': { type: 'string' },
@@ -38,7 +43,15 @@ function publicRun(run: Run): Partial<Run> {
   return result;
 }
 async function refresh(run: Run): Promise<Run> {
-  return observe(run, codexHome);
+  const observed = await observe(run, codexHome);
+  if (run.contract) {
+    observed.reporting = snapshot(root, run.id);
+    if (observed.state === 'completed' && !observed.reporting.finished) {
+      observed.state = 'failed';
+      observed.error = 'Agent ended without a validated final result';
+    }
+  }
+  return observed;
 }
 async function owner(ipc: IPC, threadId: string): Promise<string> {
   const response = await ipc.request(
@@ -49,10 +62,19 @@ async function owner(ipc: IPC, threadId: string): Promise<string> {
   if (!response.handledByClientId) throw new Error('Desktop returned no thread owner');
   return stringField(response, 'handledByClientId');
 }
+async function readJob() {
+  if (!values['prompt-file'] && !values['job-file'])
+    throw new Error('start requires --prompt-file (use - for stdin)');
+  const job = values['job-file']
+    ? (JSON.parse(await readPrompt(values['job-file'])) as { prompt: string; contract: unknown })
+    : undefined;
+  const prompt = job ? job.prompt : await readPrompt(values['prompt-file']!);
+  const reportingContract = job ? contract(job.contract) : undefined;
+  if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Prompt must not be empty');
+  return { prompt, reportingContract };
+}
 async function start(): Promise<void> {
-  if (!values['prompt-file']) throw new Error('start requires --prompt-file (use - for stdin)');
-  const prompt = await readPrompt(values['prompt-file']);
-  if (!prompt.trim()) throw new Error('Prompt must not be empty');
+  const { prompt, reportingContract } = await readJob();
   const cwd = await realpath(values.cwd ?? process.cwd());
   const title = values.title ?? 'Desktop runner task';
   const { run, fresh } = await reserve(
@@ -61,6 +83,7 @@ async function start(): Promise<void> {
     prompt,
     cwd,
     title,
+    reportingContract,
   );
   if (!fresh) {
     output(publicRun(await refresh(run)));
@@ -83,7 +106,7 @@ async function start(): Promise<void> {
       await save(root, run); // Persist before sending. Never automatically resend after this point.
       const response = await ipc.request(
         'thread-follower-start-turn',
-        turnPayload(run.threadId!, prompt),
+        turnPayload(run.threadId!, prompt + (run.contract ? instructions(root, run) : '')),
         2,
         target,
       );
@@ -181,6 +204,14 @@ async function cancel(run: Run): Promise<void> {
   output({ ...publicRun(run), cancellationRequested: true });
 }
 
+async function reportingCommand(command: string): Promise<void> {
+  if (!positionals[1] || !values['json-file'] || !values['update-id'])
+    throw new Error('Reporting requires RUN_ID, --json-file and --update-id');
+  const run = await load(root, positionals[1]);
+  const input: unknown = JSON.parse(await readPrompt(values['json-file']));
+  output(report(root, run, command, values['update-id'], input));
+}
+
 async function main(): Promise<void> {
   const command = positionals[0];
   if (values.help || !command) {
@@ -189,6 +220,10 @@ async function main(): Promise<void> {
 Commands (JSON output by default):
   doctor
   start --prompt-file FILE --cwd DIR --title TITLE --request-id KEY
+  start --job-file FILE --cwd DIR --title TITLE --request-id KEY
+  report RUN_ID --json-file FILE --update-id KEY
+  append-records RUN_ID --json-file FILE --update-id KEY
+  finish RUN_ID --json-file FILE --update-id KEY
   list
   status RUN_ID
   wait RUN_ID [--timeout SECONDS]
@@ -205,6 +240,9 @@ Repeating start with the same request ID never submits another turn.`);
   if (command === 'list') {
     output(await Promise.all((await list(root)).map(async (r) => publicRun(await refresh(r)))));
     return;
+  }
+  if (['report', 'append-records', 'finish'].includes(command)) {
+    return reportingCommand(command);
   }
   if (!['status', 'wait', 'result', 'cancel'].includes(command))
     throw new Error(`Unknown command: ${command}`);
