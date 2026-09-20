@@ -162,3 +162,17 @@ are insufficient because the desktop reloads configuration during attachment.
 
 Cancellation uses interrupt protocol v4 with the expected turn ID, so a later turn
 in the same conversation cannot accidentally be interrupted.
+
+### Opt-in live deal-tool lookups
+
+Contracted job files may include `"lookup": true`. This explicit capability is part
+of the immutable request fingerprint and selects `cdr-lookup` instead of `cdr-report`.
+Install that named profile through media-server before use. It retains report-folder
+writes and read-only project access, while allowing command traffic to
+`deals.cassettecapital.co`. The runner enables `features.network_proxy` for the thread;
+domain rules alone do not restrict network traffic without the proxy.
+
+The job does not contain an API key. The deal-tool CLI reads its private key file on
+the Mini. Keep that key scoped to `sourcing:lookup`. Regular contracted jobs remain
+network-disabled. Verify an allowed API request and a denied off-domain request in
+the desktop-owned turn whenever changing this permission handoff.

@@ -151,6 +151,7 @@ export function turnPayload(
   prompt: string,
   reporting = false,
   execution: Execution = {},
+  lookup = false,
 ): Message {
   return {
     conversationId: threadId,
@@ -159,7 +160,9 @@ export function turnPayload(
         threadId,
         ...execution,
         input: [{ type: 'text', text: prompt, text_elements: [] }],
-        ...(reporting ? { permissions: 'cdr-report', approvalPolicy: 'on-request' } : {}),
+        ...(reporting
+          ? { permissions: lookup ? 'cdr-lookup' : 'cdr-report', approvalPolicy: 'on-request' }
+          : {}),
       },
       context: {
         useAppServerPermissionDefault: !reporting,

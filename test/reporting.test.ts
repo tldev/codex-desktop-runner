@@ -118,3 +118,35 @@ test('new run reports have separate private directories and preserve legacy snap
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('live lookup is an explicit fingerprinted capability with a network proxy', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'cdr-lookup-'));
+  try {
+    const { run } = await reserve(root, 'lookup', 'prompt', '/tmp', 'test', spec, {}, true);
+    assert.equal(run.lookup, true);
+    await assert.rejects(
+      reserve(root, 'lookup', 'prompt', '/tmp', 'test', spec),
+      /different input/,
+    );
+    const params = threadParameters('/project', '/reports', {}, true);
+    assert.deepEqual(params.config, {
+      default_permissions: 'cdr-lookup',
+      'features.network_proxy': true,
+    });
+    const response = {
+      approvalPolicy: 'on-request',
+      activePermissionProfile: { id: 'cdr-lookup', extends: ':read-only' },
+      sandbox: {
+        type: 'workspaceWrite',
+        writableRoots: ['/reports'],
+        networkAccess: true,
+        excludeTmpdirEnvVar: true,
+        excludeSlashTmp: true,
+      },
+    };
+    verifyReportingPermissions(response, '/reports', true);
+    assert.throws(() => verifyReportingPermissions(response, '/reports'), /scoped reporting/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

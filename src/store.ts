@@ -5,6 +5,7 @@ import type { Execution } from './execution.ts';
 import type { Contract } from './schema.ts';
 import type { Reporting } from './reporting.ts';
 export interface Run {
+  lookup?: boolean;
   execution?: Execution;
   actualExecution?: Execution;
   contract?: Contract;
@@ -38,10 +39,14 @@ export async function reserve(
   title: string,
   contract?: Contract,
   execution: Execution = {},
+  lookup = false,
 ): Promise<{ run: Run; fresh: boolean }> {
   await mkdir(root, { recursive: true, mode: 0o700 });
   const id = key(requestId);
-  const settings = Object.keys(execution).length ? { execution } : {};
+  const settings = {
+    ...(Object.keys(execution).length ? { execution } : {}),
+    ...(lookup ? { lookup } : {}),
+  };
   const fingerprint = key(
     JSON.stringify({ prompt, cwd, title, ...(contract ? { contract } : {}), ...settings }),
   );
