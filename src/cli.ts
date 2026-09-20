@@ -102,7 +102,7 @@ async function start(): Promise<void> {
         if (typeof thread.path === 'string') run.transcript = thread.path;
         await save(root, run);
       },
-      reportDirectory,
+      reportDirectory ? path.dirname(reportDirectory) : undefined,
     );
     await exec('open', ['-a', app, `codex://threads/${run.threadId}`]);
     const ipc = await IPC.connect(socket);
@@ -113,7 +113,11 @@ async function start(): Promise<void> {
       await save(root, run); // Persist before sending. Never automatically resend after this point.
       const response = await ipc.request(
         'thread-follower-start-turn',
-        turnPayload(run.threadId!, prompt + (run.contract ? instructions(root, run) : '')),
+        turnPayload(
+          run.threadId!,
+          prompt + (run.contract ? instructions(root, run) : ''),
+          Boolean(run.contract),
+        ),
         2,
         target,
       );

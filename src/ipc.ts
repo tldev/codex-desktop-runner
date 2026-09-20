@@ -145,13 +145,17 @@ export class IPC {
     this.socket.destroy();
   }
 }
-export function turnPayload(threadId: string, prompt: string): Message {
+export function turnPayload(threadId: string, prompt: string, reporting = false): Message {
   return {
     conversationId: threadId,
     turnStart: {
-      request: { threadId, input: [{ type: 'text', text: prompt, text_elements: [] }] },
+      request: {
+        threadId,
+        input: [{ type: 'text', text: prompt, text_elements: [] }],
+        ...(reporting ? { permissions: 'cdr-report', approvalPolicy: 'on-request' } : {}),
+      },
       context: {
-        useAppServerPermissionDefault: true,
+        useAppServerPermissionDefault: !reporting,
         attachments: [],
         commentAttachments: [],
         responseItems: [],

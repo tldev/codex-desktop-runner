@@ -70,7 +70,7 @@ test('reporting profile keeps the project read-only and refuses broader runtime 
   const params = threadParameters('/project', directory);
   assert.equal(params.sandbox, undefined);
   assert.equal(threadParameters('/project').sandbox, 'read-only');
-  assert.deepEqual(params.config.permissions['cdr-report'].filesystem, { [directory]: 'write' });
+  assert.deepEqual(params.config, { default_permissions: 'cdr-report' });
   const response = {
     approvalPolicy: 'on-request',
     activePermissionProfile: { id: 'cdr-report', extends: ':read-only' },

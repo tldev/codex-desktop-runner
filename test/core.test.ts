@@ -122,3 +122,11 @@ test('IPC handles discovery, routes to exact owner, and rejects disconnects', as
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test('reporting handoff selects its configured profile instead of desktop defaults', () => {
+  const payload = turnPayload('thread', 'prompt', true);
+  assert.equal(payload.turnStart.request.permissions, 'cdr-report');
+  assert.equal(payload.turnStart.request.approvalPolicy, 'on-request');
+  assert.equal(payload.turnStart.context.useAppServerPermissionDefault, false);
+  assert.equal(turnPayload('thread', 'prompt').turnStart.request.permissions, undefined);
+});

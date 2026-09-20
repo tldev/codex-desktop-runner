@@ -2,22 +2,13 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { object, stringField, type Message } from './ipc.ts';
 
-export function threadParameters(cwd: string, reportDirectory?: string): Message {
+export function threadParameters(cwd: string, reportsRoot?: string): Message {
   return {
     cwd,
     approvalPolicy: 'on-request',
-    ...(reportDirectory
+    ...(reportsRoot
       ? {
-          config: {
-            default_permissions: 'cdr-report',
-            permissions: {
-              'cdr-report': {
-                extends: ':read-only',
-                filesystem: { [reportDirectory]: 'write' },
-                network: { enabled: false },
-              },
-            },
-          },
+          config: { default_permissions: 'cdr-report' },
         }
       : { sandbox: 'read-only' }),
   };
@@ -45,7 +36,7 @@ export async function bootstrap(
   cwd: string,
   title: string,
   onThread: (thread: Message) => Promise<void>,
-  reportDirectory?: string,
+  reportsRoot?: string,
 ): Promise<Message> {
   const child = spawn(binary, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
   let stderr = '';
@@ -108,8 +99,8 @@ export async function bootstrap(
   try {
     await request('initialize', { clientInfo: { name: 'codex_desktop_runner', version: '0.1.0' } });
     send({ method: 'initialized', params: {} });
-    const started = await request('thread/start', threadParameters(cwd, reportDirectory));
-    if (reportDirectory) verifyReportingPermissions(started, reportDirectory);
+    const started = await request('thread/start', threadParameters(cwd, reportsRoot));
+    if (reportsRoot) verifyReportingPermissions(started, reportsRoot);
     const thread = object(started.thread);
     const threadId = stringField(thread, 'id');
     await onThread(thread);
