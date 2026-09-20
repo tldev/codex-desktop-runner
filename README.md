@@ -169,8 +169,9 @@ Contracted job files may include `"lookup": true`. This explicit capability is p
 of the immutable request fingerprint and selects `cdr-lookup` instead of `cdr-report`.
 Install that named profile through media-server before use. It retains report-folder
 writes and read-only project access, while allowing command traffic to
-`deals.cassettecapital.co`. The runner enables `features.network_proxy` for the thread;
-domain rules alone do not restrict network traffic without the proxy.
+`deals.cassettecapital.co`. Enable `features.network_proxy = true` in desktop
+configuration as well as the bootstrap override: bootstrap-only feature settings
+do not survive desktop handoff. Domain rules alone do not restrict network traffic without the proxy.
 
 The job does not contain an API key. The deal-tool CLI reads its private key file on
 the Mini. Keep that key scoped to `sourcing:lookup`. Regular contracted jobs remain
