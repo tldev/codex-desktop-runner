@@ -69,15 +69,21 @@ async function readJob() {
   if (!values['prompt-file'] && !values['job-file'])
     throw new Error('start requires --prompt-file (use - for stdin)');
   const job = values['job-file']
-    ? (JSON.parse(await readPrompt(values['job-file'])) as { prompt: string; contract: unknown })
+    ? (JSON.parse(await readPrompt(values['job-file'])) as {
+        prompt: string;
+        contract: unknown;
+        lookup?: boolean;
+      })
     : undefined;
   const prompt = job ? job.prompt : await readPrompt(values['prompt-file']!);
   const reportingContract = job ? contract(job.contract) : undefined;
   if (typeof prompt !== 'string' || !prompt.trim()) throw new Error('Prompt must not be empty');
-  return { prompt, reportingContract };
+  if (job?.lookup !== undefined && typeof job.lookup !== 'boolean')
+    throw new Error('Invalid lookup capability');
+  return { prompt, reportingContract, lookup: job?.lookup === true };
 }
 async function start(): Promise<void> {
-  const { prompt, reportingContract } = await readJob();
+  const { prompt, reportingContract, lookup } = await readJob();
   const cwd = await realpath(values.cwd ?? process.cwd());
   const title = values.title ?? 'Desktop runner task';
   const { run, fresh } = await reserve(
@@ -88,6 +94,7 @@ async function start(): Promise<void> {
     title,
     reportingContract,
     execution(values.model, values.effort),
+    lookup,
   );
   if (!fresh) {
     output(publicRun(await refresh(run)));
@@ -108,6 +115,7 @@ async function start(): Promise<void> {
       },
       reportDirectory ? path.dirname(reportDirectory) : undefined,
       run.execution,
+      run.lookup,
     );
     await exec('open', ['-a', app, `codex://threads/${run.threadId}`]);
     const ipc = await IPC.connect(socket);
@@ -123,6 +131,7 @@ async function start(): Promise<void> {
           prompt + (run.contract ? instructions(root, run) : ''),
           Boolean(run.contract),
           run.execution,
+          run.lookup,
         ),
         2,
         target,

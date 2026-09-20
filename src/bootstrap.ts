@@ -7,6 +7,7 @@ export function threadParameters(
   cwd: string,
   reportsRoot?: string,
   execution: Execution = {},
+  lookup = false,
 ): Message {
   return {
     cwd,
@@ -14,21 +15,28 @@ export function threadParameters(
     approvalPolicy: 'on-request',
     ...(reportsRoot
       ? {
-          config: { default_permissions: 'cdr-report' },
+          config: {
+            default_permissions: lookup ? 'cdr-lookup' : 'cdr-report',
+            ...(lookup ? { 'features.network_proxy': true } : {}),
+          },
         }
       : { sandbox: 'read-only' }),
   };
 }
 
-export function verifyReportingPermissions(started: Message, directory: string): void {
+export function verifyReportingPermissions(
+  started: Message,
+  directory: string,
+  lookup = false,
+): void {
   const sandbox = object(started.sandbox);
   const profile = object(started.activePermissionProfile);
   if (
-    profile.id !== 'cdr-report' ||
+    profile.id !== (lookup ? 'cdr-lookup' : 'cdr-report') ||
     profile.extends !== ':read-only' ||
     started.approvalPolicy !== 'on-request' ||
     sandbox.type !== 'workspaceWrite' ||
-    sandbox.networkAccess !== false ||
+    sandbox.networkAccess !== lookup ||
     sandbox.excludeTmpdirEnvVar !== true ||
     sandbox.excludeSlashTmp !== true ||
     JSON.stringify(sandbox.writableRoots) !== JSON.stringify([directory])
@@ -44,6 +52,7 @@ export async function bootstrap(
   onThread: (thread: Message) => Promise<void>,
   reportsRoot?: string,
   execution: Execution = {},
+  lookup = false,
 ): Promise<Message> {
   const child = spawn(binary, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
   let stderr = '';
@@ -106,8 +115,11 @@ export async function bootstrap(
   try {
     await request('initialize', { clientInfo: { name: 'codex_desktop_runner', version: '0.1.0' } });
     send({ method: 'initialized', params: {} });
-    const started = await request('thread/start', threadParameters(cwd, reportsRoot, execution));
-    if (reportsRoot) verifyReportingPermissions(started, reportsRoot);
+    const started = await request(
+      'thread/start',
+      threadParameters(cwd, reportsRoot, execution, lookup),
+    );
+    if (reportsRoot) verifyReportingPermissions(started, reportsRoot, lookup);
     const thread = object(started.thread);
     const threadId = stringField(thread, 'id');
     await onThread(thread);
