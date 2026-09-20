@@ -1,10 +1,16 @@
+import type { Execution } from './execution.ts';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { object, stringField, type Message } from './ipc.ts';
 
-export function threadParameters(cwd: string, reportsRoot?: string): Message {
+export function threadParameters(
+  cwd: string,
+  reportsRoot?: string,
+  execution: Execution = {},
+): Message {
   return {
     cwd,
+    ...(execution.model ? { model: execution.model } : {}),
     approvalPolicy: 'on-request',
     ...(reportsRoot
       ? {
@@ -37,6 +43,7 @@ export async function bootstrap(
   title: string,
   onThread: (thread: Message) => Promise<void>,
   reportsRoot?: string,
+  execution: Execution = {},
 ): Promise<Message> {
   const child = spawn(binary, ['app-server'], { stdio: ['pipe', 'pipe', 'pipe'] });
   let stderr = '';
@@ -99,7 +106,7 @@ export async function bootstrap(
   try {
     await request('initialize', { clientInfo: { name: 'codex_desktop_runner', version: '0.1.0' } });
     send({ method: 'initialized', params: {} });
-    const started = await request('thread/start', threadParameters(cwd, reportsRoot));
+    const started = await request('thread/start', threadParameters(cwd, reportsRoot, execution));
     if (reportsRoot) verifyReportingPermissions(started, reportsRoot);
     const thread = object(started.thread);
     const threadId = stringField(thread, 'id');
@@ -111,6 +118,7 @@ export async function bootstrap(
     );
     completed.catch(() => {}); // The request below may fail before completion is awaited.
     await request('turn/start', {
+      ...execution,
       threadId: threadId,
       input: [
         {

@@ -1,4 +1,6 @@
 import test from 'node:test';
+import { execution } from '../src/execution.ts';
+import { threadParameters } from '../src/bootstrap.ts';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -129,4 +131,50 @@ test('reporting handoff selects its configured profile instead of desktop defaul
   assert.equal(payload.turnStart.request.approvalPolicy, 'on-request');
   assert.equal(payload.turnStart.context.useAppServerPermissionDefault, false);
   assert.equal(turnPayload('thread', 'prompt').turnStart.request.permissions, undefined);
+});
+
+test('execution overrides reach desktop handoff without changing permission defaults', () => {
+  const settings = execution('gpt-5.6-luna', 'low');
+  const payload = turnPayload('thread', 'prompt', true, settings);
+  assert.equal(payload.turnStart.request.model, settings.model);
+  assert.equal(payload.turnStart.request.effort, settings.effort);
+  assert.equal(payload.turnStart.request.permissions, 'cdr-report');
+  assert.equal(threadParameters('/project', undefined, settings).model, settings.model);
+  assert.deepEqual(execution(), {});
+  assert.throws(() => execution(''), /model/);
+  assert.throws(() => execution('valid-model', 'cheap'), /effort/);
+});
+
+test('execution changes cannot reuse an existing request identity', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'cdr-model-'));
+  try {
+    const settings = execution('gpt-5.6-luna', 'low');
+    const first = await reserve(dir, 'job', 'prompt', '/tmp', 'title', undefined, settings);
+    assert.deepEqual(first.run.execution, settings);
+    assert.equal(
+      (await reserve(dir, 'job', 'prompt', '/tmp', 'title', undefined, settings)).fresh,
+      false,
+    );
+    await assert.rejects(
+      reserve(dir, 'job', 'prompt', '/tmp', 'title', undefined, execution('gpt-6-astra', 'medium')),
+      /different input/,
+    );
+    await assert.rejects(reserve(dir, 'job', 'prompt', '/tmp', 'title'), /different input/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('actual execution metadata excludes bootstrap and later turns', () => {
+  const text = [
+    event('event_msg', { type: 'task_started', turn_id: 'bootstrap' }, '2026-09-19T00:01:00Z'),
+    event('turn_context', { turn_id: 'bootstrap', model: 'bootstrap-model', effort: 'high' }),
+    event('event_msg', { type: 'task_complete', turn_id: 'bootstrap' }),
+    event('event_msg', { type: 'task_started', turn_id: 'real' }),
+    event('turn_context', { turn_id: 'real', model: 'gpt-5.6-luna', effort: 'low' }),
+    event('event_msg', { type: 'task_complete', turn_id: 'real' }),
+    event('event_msg', { type: 'task_started', turn_id: 'later' }),
+    event('turn_context', { turn_id: 'later', model: 'other', effort: 'high' }),
+  ].join('\n');
+  assert.deepEqual(inspect(run, text).actualExecution, { model: 'gpt-5.6-luna', effort: 'low' });
 });
