@@ -1,7 +1,11 @@
 import { mkdir, readFile, writeFile, rename, readdir, link, unlink } from 'node:fs/promises';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
+import type { Contract } from './schema.ts';
+import type { Reporting } from './reporting.ts';
 export interface Run {
+  contract?: Contract;
+  reporting?: Reporting;
   id: string;
   requestId: string;
   fingerprint: string;
@@ -29,10 +33,13 @@ export async function reserve(
   prompt: string,
   cwd: string,
   title: string,
+  contract?: Contract,
 ): Promise<{ run: Run; fresh: boolean }> {
   await mkdir(root, { recursive: true, mode: 0o700 });
   const id = key(requestId);
-  const fingerprint = key(JSON.stringify({ prompt, cwd, title }));
+  const fingerprint = key(
+    JSON.stringify({ prompt, cwd, title, ...(contract ? { contract } : {}) }),
+  );
   const run: Run = {
     id,
     requestId,
@@ -42,6 +49,7 @@ export async function reserve(
     cwd,
     title,
     prompt,
+    ...(contract ? { contract } : {}),
   };
   const temporary = path.join(root, `.reserve-${randomUUID()}.tmp`);
   await writeFile(temporary, JSON.stringify(run, null, 2), { flag: 'wx', mode: 0o600 });

@@ -85,3 +85,42 @@ The browser sourcing PoC established the current payload shape: `turnStart.reque
 TypeScript, Node standard library only at runtime. `npm run check` checks types and tests fragmented framing, endpoint interaction, disconnects, concurrent request deduplication, renderer context fields, and transcript reconciliation. `npm run build` emits the global CLI.
 
 CI enforces a cyclomatic complexity maximum of 15 with no baseline exemptions, zero lint warnings, formatting, strict types, tests, and installation of the packed CLI on macOS and Linux. Security gates include dependency auditing, registry signatures, CodeQL, PR dependency review, and weekly scans. See [SECURITY.md](SECURITY.md).
+
+## Structured reporting
+
+`start --job-file FILE` (or `-` for stdin) accepts `{ "prompt": "...", "contract": {...} }`.
+The immutable contract has `version: 1` and `progress`, `record`, and `result` schemas.
+The runner automatically appends the run ID, exact local command paths and state directory,
+contract, and reporting instructions to the agent's mission. No MCP server is needed.
+
+The agent invokes these commands locally, writing JSON to a private temporary file:
+
+```sh
+codex-desktop-runner report RUN_ID --update-id phase-1 --json-file progress.json
+codex-desktop-runner append-records RUN_ID --update-id batch-1 --json-file records.json
+codex-desktop-runner finish RUN_ID --update-id final --json-file result.json
+```
+
+`append-records` accepts an array. Each record requires a stable string `id` and later
+submissions replace that record. Update IDs are unique within a run: identical retries
+are safe, reuse with different input fails. A finished report rejects subsequent changes.
+Updates are atomic SQLite transactions in `CDR_HOME/reporting.sqlite`, separate from
+execution metadata, so concurrent execution observations cannot overwrite agent reports.
+
+`status` and `result` include `reporting` with a monotonic `version`, `updatedAt`, latest
+`progress`, accumulated `records`, `result`, and `finished`. Poll the snapshot and apply
+only newer versions. No transcript parsing is used for these application fields.
+Desktop execution still determines when the agent stopped. A contracted run that ends
+without a validated `finish` is failed, even if the agent's final prose says success.
+A structured result may describe partial or failed business outcomes independently of
+successful desktop execution.
+
+Supported schema keywords are `type` (object, array, string, number, integer, boolean,
+null), `properties`, `required`, `additionalProperties:false`, `items`, `enum`,
+`minimum`, `maximum`, `minLength`, `maxLength`, `maxItems`, and `nullable` (a boolean
+extension for optional values). Unsupported keywords fail at job creation. This is a
+bounded subset, not a general JSON Schema implementation. Objects must explicitly
+list properties, required fields, and forbid additional properties. Schemas are limited
+to 12 levels; batches to 50 records; runs to 250 records and 2 MB of reporting data.
+The host application's semantic checks, authorization, scheduling, browser serialization,
+and interpretation of outcomes remain the caller's responsibility.
