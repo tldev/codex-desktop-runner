@@ -125,12 +125,29 @@ to 12 levels; batches to 50 records; runs to 250 records and 2 MB of reporting d
 The host application's semantic checks, authorization, scheduling, browser serialization,
 and interpretation of outcomes remain the caller's responsibility.
 
-Contracted jobs receive a per-thread permission profile extending read-only, with
-writes limited to their private `reports/RUN_ID` directory. Shell network access
-remains disabled and approvals stay on-request. The launcher verifies the returned
-profile before handing the task to the desktop. Reporting instructions put private
-JSON payloads in that directory and use the normal sandbox. Desktop global settings
-are unchanged. Older jobs retain access to their original report snapshots.
+Contracted jobs explicitly select the named `cdr-report` permission profile for
+both bootstrap and desktop handoff. Install this profile in the desktop's Codex
+configuration before submitting contracted jobs (substitute your actual absolute
+`CDR_HOME/reports` path):
+
+```toml
+[permissions.cdr-report]
+extends = ":read-only"
+
+[permissions.cdr-report.filesystem]
+"/absolute/CDR_HOME/reports" = "write"
+
+[permissions.cdr-report.network]
+enabled = false
+```
+
+Do not change `default_permissions` or the desktop's normal approval settings.
+The launcher verifies that the profile grants only the reports root, with no shell
+network access or temp-directory writes. Jobs store their reports and private JSON
+payloads in separate `reports/RUN_ID` directories. This separates job data but is
+not an isolation boundary between agents using the same report root. Older jobs
+retain their original report snapshots. Temporary bootstrap-only profile definitions
+are insufficient because the desktop reloads configuration during attachment.
 
 Cancellation uses interrupt protocol v4 with the expected turn ID, so a later turn
 in the same conversation cannot accidentally be interrupted.
