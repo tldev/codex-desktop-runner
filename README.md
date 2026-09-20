@@ -141,10 +141,14 @@ extends = ":read-only"
 enabled = false
 ```
 
-Do not change `default_permissions` or the desktop's normal approval settings.
+Preserve the desktop's existing `default_permissions` and normal approval settings.
+If no default is configured, set `default_permissions = ":read-only"` at the top
+of the file before any TOML tables, preserving Codex's implicit read-only default.
+Named profiles require an explicit default. Review legacy `sandbox_mode` settings
+before converting them.
 The launcher verifies that the profile grants only the reports root, with no shell
-network access or temp-directory writes. Jobs store their reports and private JSON
-payloads in separate `reports/RUN_ID` directories. This separates job data but is
+network access or temp-directory writes. Jobs store their reports in separate `reports/RUN_ID` directories. Agents pipe
+JSON to `--json-file -` with `printf`, avoiding shell heredoc temporary files. This separates job data but is
 not an isolation boundary between agents using the same report root. Older jobs
 retain their original report snapshots. Temporary bootstrap-only profile definitions
 are insufficient because the desktop reloads configuration during attachment.
