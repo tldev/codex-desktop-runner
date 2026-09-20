@@ -39,6 +39,13 @@ All operational commands return JSON. `--json` is accepted for explicit callers.
 ssh mini 'PATH=/opt/homebrew/bin:$PATH codex-desktop-runner start --cwd ~/projects/deal-tool --title sourcing --request-id sourcing-123 --prompt-file -' < mission.txt
 ```
 
+Pass `--model gpt-5.6-luna --effort low` to select execution settings for one run.
+Omitted settings inherit runtime defaults. Availability depends on the signed-in account and
+runtime; unsupported combinations fail through the runtime rather than falling back locally.
+The settings apply to both the bootstrap turn and desktop handoff. Run JSON includes requested
+`execution` settings and, once observed in the matching turn's typed metadata, `actualExecution`.
+Changing settings with an existing request ID is rejected. This does not change app defaults.
+
 Once `start` returns a turn ID, the desktop owns execution. SSH can disconnect and later CLI calls can retrieve results. No launcher daemon is required. The bootstrap itself takes a short model turn, so `start` is not instantaneous.
 
 Exit codes: 0 for successful operations, 1 for command errors or submission failure/uncertainty, 2 for wait timeout or an unfinished result. A wait timeout never cancels the agent. Execution completion does not validate the truth or completeness of an agent's answer.

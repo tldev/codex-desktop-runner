@@ -10,6 +10,7 @@ import { IPC, turnPayload, object, stringField } from './ipc.ts';
 import { bootstrap } from './bootstrap.ts';
 import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
+import { execution } from './execution.ts';
 import { contract } from './schema.ts';
 import { snapshot, report, instructions, prepareReporting } from './reporting.ts';
 const exec = promisify(execFile);
@@ -22,6 +23,8 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
     cwd: { type: 'string' },
+    model: { type: 'string' },
+    effort: { type: 'string' },
     'job-file': { type: 'string' },
     'json-file': { type: 'string' },
     'update-id': { type: 'string' },
@@ -84,6 +87,7 @@ async function start(): Promise<void> {
     cwd,
     title,
     reportingContract,
+    execution(values.model, values.effort),
   );
   if (!fresh) {
     output(publicRun(await refresh(run)));
@@ -103,6 +107,7 @@ async function start(): Promise<void> {
         await save(root, run);
       },
       reportDirectory ? path.dirname(reportDirectory) : undefined,
+      run.execution,
     );
     await exec('open', ['-a', app, `codex://threads/${run.threadId}`]);
     const ipc = await IPC.connect(socket);
@@ -117,6 +122,7 @@ async function start(): Promise<void> {
           run.threadId!,
           prompt + (run.contract ? instructions(root, run) : ''),
           Boolean(run.contract),
+          run.execution,
         ),
         2,
         target,
@@ -242,6 +248,7 @@ Commands (JSON output by default):
   cancel RUN_ID
 
 Environment: CDR_HOME, CDR_APP, CDR_CODEX, CDR_SOCKET, CODEX_HOME
+start accepts --model MODEL and --effort LEVEL; omitted settings inherit runtime defaults.
 start accepts --prompt-file - for stdin. A timeout does not cancel a task.
 Repeating start with the same request ID never submits another turn.`);
     return;

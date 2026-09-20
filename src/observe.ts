@@ -7,6 +7,8 @@ interface Event {
   payload: {
     type?: string;
     turn_id?: string;
+    model?: string;
+    effort?: string;
     role?: string;
     last_agent_message?: string;
     content?: { text?: string }[];
@@ -60,6 +62,8 @@ export function inspect(run: Run, text: string): Run {
     }
     if (p.type === 'task_complete' || p.type === 'turn_aborted') result.activeTurnId = undefined;
     if (!active) continue;
+    if (event.type === 'turn_context' && p.turn_id === result.turnId)
+      result.actualExecution = { model: p.model, effort: p.effort };
     countTools(result, event);
     updateText(result, event);
     if (p.type === 'task_complete') {

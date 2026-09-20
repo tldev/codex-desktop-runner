@@ -1,4 +1,5 @@
 import net from 'node:net';
+import type { Execution } from './execution.ts';
 import { randomUUID } from 'node:crypto';
 import { lstat } from 'node:fs/promises';
 import path from 'node:path';
@@ -145,12 +146,18 @@ export class IPC {
     this.socket.destroy();
   }
 }
-export function turnPayload(threadId: string, prompt: string, reporting = false): Message {
+export function turnPayload(
+  threadId: string,
+  prompt: string,
+  reporting = false,
+  execution: Execution = {},
+): Message {
   return {
     conversationId: threadId,
     turnStart: {
       request: {
         threadId,
+        ...execution,
         input: [{ type: 'text', text: prompt, text_elements: [] }],
         ...(reporting ? { permissions: 'cdr-report', approvalPolicy: 'on-request' } : {}),
       },
