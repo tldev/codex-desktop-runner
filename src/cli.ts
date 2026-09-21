@@ -64,9 +64,9 @@ async function refresh(run: Run): Promise<Run> {
   }
   if (
     observed.reporting?.researcherActive &&
-    ['completed', 'cancelled', 'failed'].includes(observed.state)
+    (observed.reporting.stopped || ['completed', 'cancelled', 'failed'].includes(observed.state))
   ) {
-    observed.parentState = observed.state;
+    if (observed.state !== 'running') observed.parentState = observed.state;
     observed.state = 'draining';
   }
   return observed;
@@ -222,7 +222,13 @@ async function doctor(): Promise<void> {
 }
 
 async function cancel(run: Run): Promise<void> {
-  if (run.contract) researcherLifecycle(root, run, 'stop');
+  if (run.contract) {
+    const reporting = researcherLifecycle(root, run, 'stop');
+    if (reporting.researcherActive) {
+      output({ ...publicRun(run), state: 'draining', reporting, cancellationRequested: true });
+      return;
+    }
+  }
   if (run.parentState) {
     output({ ...publicRun(run), cancellationRequested: true });
     return;
