@@ -156,3 +156,19 @@ export function researcherLifecycle(
     db.close();
   }
 }
+
+export function reportingLifecycle(observed: Run): Run {
+  const report = observed.reporting;
+  if (report && observed.state === 'completed' && !report.finished) {
+    observed.state = report.stopped ? 'cancelled' : 'failed';
+    if (!report.stopped) observed.error = 'Agent ended without a validated final result';
+  }
+  if (
+    report?.researcherActive &&
+    (report.stopped || ['completed', 'cancelled', 'failed'].includes(observed.state))
+  ) {
+    if (observed.state !== 'running') observed.parentState = observed.state;
+    observed.state = 'draining';
+  }
+  return observed;
+}

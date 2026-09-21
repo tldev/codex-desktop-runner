@@ -190,3 +190,18 @@ test('cancellation seals reports while allowing a researcher to acknowledge stop
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('cooperative cancellation remains draining until cleanup and ends cancelled', async () => {
+  const { reportingLifecycle } = await import('../src/reporting.ts');
+  const run = {
+    state: 'completed',
+    reporting: { version: 2, records: [], finished: false, stopped: true, researcherActive: true },
+  } as Run;
+  assert.equal(reportingLifecycle(structuredClone(run)).state, 'draining');
+  run.reporting!.researcherActive = false;
+  assert.equal(reportingLifecycle(structuredClone(run)).state, 'cancelled');
+  run.reporting!.stopped = false;
+  assert.equal(reportingLifecycle(structuredClone(run)).state, 'failed');
+  run.reporting!.finished = true;
+  assert.equal(reportingLifecycle(run).state, 'completed');
+});
