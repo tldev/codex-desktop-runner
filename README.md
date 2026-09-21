@@ -194,3 +194,8 @@ registered. The caller must keep that run's browser capacity reserved while drai
 This is a cooperative lease: it does not forcibly terminate an in-flight child tool.
 If a researcher fails to acknowledge cleanup, the run needs attention and does not
 silently release capacity. The parent must clean up registration after spawn failure.
+
+Cancellation first seals reporting and allows an active researcher to acknowledge cleanup.
+Only after that acknowledgement does a repeated cancel interrupt the parent turn.
+Poll and repeat cancel until the run reaches a terminal state; a stranded researcher
+keeps the run draining and requires inspection rather than freeing capacity early.
