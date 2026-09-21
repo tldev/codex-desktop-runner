@@ -19,6 +19,7 @@ import {
   prepareReporting,
   acknowledgment,
   researcherLifecycle,
+  reportingLifecycle,
 } from './reporting.ts';
 const exec = promisify(execFile);
 const codexHome = process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
@@ -57,20 +58,10 @@ async function refresh(run: Run): Promise<Run> {
   const observed = await observe(run, codexHome);
   if (run.contract) {
     observed.reporting = snapshot(root, run.id);
-    if (observed.state === 'completed' && !observed.reporting.finished) {
-      observed.state = 'failed';
-      observed.error = 'Agent ended without a validated final result';
-    }
   }
-  if (
-    observed.reporting?.researcherActive &&
-    (observed.reporting.stopped || ['completed', 'cancelled', 'failed'].includes(observed.state))
-  ) {
-    if (observed.state !== 'running') observed.parentState = observed.state;
-    observed.state = 'draining';
-  }
-  return observed;
+  return reportingLifecycle(observed);
 }
+
 async function owner(ipc: IPC, threadId: string): Promise<string> {
   const response = await ipc.request(
     'thread-owner-discovery',
