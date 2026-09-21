@@ -162,3 +162,31 @@ test('compact acknowledgment does not return sensitive or bulky listing text', a
     { version: 8, recordCount: 1, finished: false },
   );
 });
+
+test('cancellation seals reports while allowing a researcher to acknowledge stopping', async () => {
+  const { researcherLifecycle } = await import('../src/reporting.ts');
+  const root = await mkdtemp(path.join(tmpdir(), 'cdr-lifecycle-'));
+  try {
+    const { run } = await reserve(root, 'lifecycle', 'test', root, 'test', spec);
+    run.submittedAt = new Date().toISOString();
+    prepareReporting(root, run.id);
+    researcherLifecycle(root, run, 'researcher-start');
+    assert.throws(
+      () => report(root, run, 'finish', 'finish-early', { id: 'result', count: 1 }),
+      /Researcher must stop/,
+    );
+    assert.throws(() => researcherLifecycle(root, run, 'researcher-start'), /another researcher/);
+    researcherLifecycle(root, run, 'stop');
+    assert.throws(
+      () => report(root, run, 'append-records', 'late', [{ id: 'listing', count: 1 }]),
+      /late reports/,
+    );
+    assert.equal(snapshot(root, run.id).researcherActive, true);
+    researcherLifecycle(root, run, 'researcher-stop');
+    assert.equal(snapshot(root, run.id).researcherActive, false);
+    assert.equal(snapshot(root, run.id).stopped, true);
+    assert.throws(() => researcherLifecycle(root, run, 'researcher-start'), /another researcher/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

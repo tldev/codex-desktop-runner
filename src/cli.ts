@@ -12,7 +12,14 @@ import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
 import { execution } from './execution.ts';
 import { contract } from './schema.ts';
-import { snapshot, report, instructions, prepareReporting, acknowledgment } from './reporting.ts';
+import {
+  snapshot,
+  report,
+  instructions,
+  prepareReporting,
+  acknowledgment,
+  researcherLifecycle,
+} from './reporting.ts';
 const exec = promisify(execFile);
 const codexHome = process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
 const root = process.env.CDR_HOME ?? path.join(homedir(), '.local/state/codex-desktop-runner');
@@ -54,6 +61,13 @@ async function refresh(run: Run): Promise<Run> {
       observed.state = 'failed';
       observed.error = 'Agent ended without a validated final result';
     }
+  }
+  if (
+    observed.reporting?.researcherActive &&
+    ['completed', 'cancelled', 'failed'].includes(observed.state)
+  ) {
+    observed.parentState = observed.state;
+    observed.state = 'draining';
   }
   return observed;
 }
@@ -208,6 +222,11 @@ async function doctor(): Promise<void> {
 }
 
 async function cancel(run: Run): Promise<void> {
+  if (run.contract) researcherLifecycle(root, run, 'stop');
+  if (run.parentState) {
+    output({ ...publicRun(run), cancellationRequested: true });
+    return;
+  }
   if (['completed', 'cancelled', 'failed'].includes(run.state)) {
     output(publicRun(run));
     return;
@@ -234,10 +253,28 @@ async function cancel(run: Run): Promise<void> {
 async function reportingCommand(command: string): Promise<void> {
   if (!positionals[1] || !values['json-file'] || !values['update-id'])
     throw new Error('Reporting requires RUN_ID, --json-file and --update-id');
-  const run = await load(root, positionals[1]);
+  const run = await observe(await load(root, positionals[1]), codexHome);
+  if (['completed', 'cancelled', 'failed'].includes(run.state))
+    throw new Error('Run is no longer active');
   const input: unknown = JSON.parse(await readPrompt(values['json-file']));
   const result = report(root, run, command, values['update-id'], input);
   output(values['ack-only'] ? acknowledgment(result) : result);
+}
+
+async function researcherCommand(command: string): Promise<void> {
+  if (!positionals[1]) throw new Error('Run ID required');
+  const run = await observe(await load(root, positionals[1]), codexHome);
+  const active = run.state === 'running' && (!run.contract || !snapshot(root, run.id).stopped);
+  if (command === 'active') {
+    output({ active });
+    return;
+  }
+  if (command === 'researcher-start' && !active) throw new Error('Run is no longer active');
+  output(
+    acknowledgment(
+      researcherLifecycle(root, run, command as 'researcher-start' | 'researcher-stop'),
+    ),
+  );
 }
 
 async function main(): Promise<void> {
@@ -253,6 +290,9 @@ Commands (JSON output by default):
   append-records RUN_ID --json-file FILE --update-id KEY
   finish RUN_ID --json-file FILE --update-id KEY
   list
+  active RUN_ID
+  researcher-start RUN_ID
+  researcher-stop RUN_ID
   status RUN_ID
   wait RUN_ID [--timeout SECONDS]
   result RUN_ID
@@ -273,6 +313,8 @@ Repeating start with the same request ID never submits another turn.`);
   if (['report', 'append-records', 'finish'].includes(command)) {
     return reportingCommand(command);
   }
+  if (['active', 'researcher-start', 'researcher-stop'].includes(command))
+    return researcherCommand(command);
   if (!['status', 'wait', 'result', 'cancel'].includes(command))
     throw new Error(`Unknown command: ${command}`);
   if (!positionals[1]) throw new Error('Run ID required');
