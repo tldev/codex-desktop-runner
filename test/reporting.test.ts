@@ -150,3 +150,15 @@ test('live lookup is an explicit fingerprinted capability with a network proxy',
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test('compact acknowledgment does not return sensitive or bulky listing text', async () => {
+  const { acknowledgment } = await import('../src/reporting.ts');
+  assert.deepEqual(
+    acknowledgment({
+      version: 8,
+      records: [{ id: 'listing', text: 'large private payload' }],
+      finished: false,
+    }),
+    { version: 8, recordCount: 1, finished: false },
+  );
+});

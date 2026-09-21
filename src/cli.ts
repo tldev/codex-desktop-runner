@@ -12,7 +12,7 @@ import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
 import { execution } from './execution.ts';
 import { contract } from './schema.ts';
-import { snapshot, report, instructions, prepareReporting } from './reporting.ts';
+import { snapshot, report, instructions, prepareReporting, acknowledgment } from './reporting.ts';
 const exec = promisify(execFile);
 const codexHome = process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
 const root = process.env.CDR_HOME ?? path.join(homedir(), '.local/state/codex-desktop-runner');
@@ -28,6 +28,7 @@ const { values, positionals } = parseArgs({
     'job-file': { type: 'string' },
     'json-file': { type: 'string' },
     'update-id': { type: 'string' },
+    'ack-only': { type: 'boolean' },
     title: { type: 'string' },
     'prompt-file': { type: 'string' },
     'request-id': { type: 'string' },
@@ -235,7 +236,8 @@ async function reportingCommand(command: string): Promise<void> {
     throw new Error('Reporting requires RUN_ID, --json-file and --update-id');
   const run = await load(root, positionals[1]);
   const input: unknown = JSON.parse(await readPrompt(values['json-file']));
-  output(report(root, run, command, values['update-id'], input));
+  const result = report(root, run, command, values['update-id'], input);
+  output(values['ack-only'] ? acknowledgment(result) : result);
 }
 
 async function main(): Promise<void> {
