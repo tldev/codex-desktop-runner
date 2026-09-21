@@ -6,6 +6,7 @@ import type { Contract } from './schema.ts';
 import type { Reporting } from './reporting.ts';
 export interface Run {
   lookup?: boolean;
+  parentState?: string;
   execution?: Execution;
   actualExecution?: Execution;
   contract?: Contract;

@@ -177,3 +177,20 @@ The job does not contain an API key. The deal-tool CLI reads its private key fil
 the Mini. Keep that key scoped to `sourcing:lookup`. Regular contracted jobs remain
 network-disabled. Verify an allowed API request and a denied off-domain request in
 the desktop-owned turn whenever changing this permission handoff.
+
+### Delegated extraction
+
+Reporting commands accept `--ack-only` to return only the reporting version,
+record count, and completion flag. Use it with `--json-file PATH` for child-produced
+payloads so the parent does not have to read or reproduce raw listing content.
+The injected reporting instructions identify the permitted run work directory.
+The caller remains responsible for child lifecycles and browser concurrency.
+
+Researchers must register with `researcher-start RUN_ID`, check `active RUN_ID`
+before each browser operation, and acknowledge cleanup with `researcher-stop RUN_ID`.
+Cancellation seals the reporting store before interrupting the parent. Late writes
+are rejected, and a terminal parent remains `draining` while its researcher is
+registered. The caller must keep that run's browser capacity reserved while draining.
+This is a cooperative lease: it does not forcibly terminate an in-flight child tool.
+If a researcher fails to acknowledge cleanup, the run needs attention and does not
+silently release capacity. The parent must clean up registration after spawn failure.
