@@ -10,6 +10,7 @@ import { IPC, turnPayload, object, stringField } from './ipc.ts';
 import { bootstrap } from './bootstrap.ts';
 import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
+import { readBrowserRecords } from './browser-records.ts';
 import { execution } from './execution.ts';
 import { contract } from './schema.ts';
 import {
@@ -37,6 +38,7 @@ const { values, positionals } = parseArgs({
     'json-file': { type: 'string' },
     'update-id': { type: 'string' },
     'ack-only': { type: 'boolean' },
+    'browser-output': { type: 'boolean' },
     title: { type: 'string' },
     'prompt-file': { type: 'string' },
     'request-id': { type: 'string' },
@@ -248,12 +250,18 @@ async function cancel(run: Run): Promise<void> {
 }
 
 async function reportingCommand(command: string): Promise<void> {
-  if (!positionals[1] || !values['json-file'] || !values['update-id'])
-    throw new Error('Reporting requires RUN_ID, --json-file and --update-id');
+  if (!positionals[1] || !values['update-id'])
+    throw new Error('Reporting requires RUN_ID and --update-id');
+  if (Boolean(values['json-file']) === Boolean(values['browser-output']))
+    throw new Error('Choose exactly one of --json-file or --browser-output');
+  if (values['browser-output'] && command !== 'append-records')
+    throw new Error('--browser-output is only supported for append-records');
   const run = await observe(await load(root, positionals[1]), codexHome);
   if (['completed', 'cancelled', 'failed'].includes(run.state))
     throw new Error('Run is no longer active');
-  const input: unknown = JSON.parse(await readPrompt(values['json-file']));
+  const input: unknown = values['browser-output']
+    ? await readBrowserRecords(run, values['update-id'])
+    : JSON.parse(await readPrompt(values['json-file']!));
   const result = report(root, run, command, values['update-id'], input);
   output(values['ack-only'] ? acknowledgment(result) : result);
 }

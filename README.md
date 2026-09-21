@@ -199,3 +199,18 @@ Cancellation first seals reporting and allows an active researcher to acknowledg
 Only after that acknowledgement does a repeated cancel interrupt the parent turn.
 Poll and repeat cancel until the run reaches a terminal state; a stranded researcher
 keeps the run draining and requires inspection rather than freeing capacity early.
+
+### Browser record handoff
+
+For browser capture jobs, construct the record in the browser REPL using captured text
+variables, then emit `nodeRepl.write(JSON.stringify({cdrRecords:{runId,updateId,records:[record]}}))`.
+Use `append-records RUN_ID --browser-output --update-id UPDATE_ID --ack-only` to submit it.
+The runner reads the matching JSON envelope from this run's browser tool output and applies
+the normal record schema. It does not derive records or progress from narrative text.
+The run ID and update ID must match; ordinary shell outputs are not accepted. Treat this
+as an explicit data handoff, not a source-authenticity guarantee. Website content remains
+untrusted and callers must retain their normal evidence and assignment checks.
+
+Reuse the browser session across modest batches and submit each record immediately.
+The append acknowledgment supplies the record count. Close owned tabs, then stop the
+researcher before finishing; the generated instructions include that exact sequence.
