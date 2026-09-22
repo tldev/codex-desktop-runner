@@ -6,7 +6,7 @@ import path from 'node:path';
 import { contract, validate, type Schema } from '../src/schema.ts';
 import { threadParameters, verifyReportingPermissions } from '../src/bootstrap.ts';
 import { reserve } from '../src/store.ts';
-import { report, snapshot, prepareReporting } from '../src/reporting.ts';
+import { report, snapshot, prepareReporting, researcherLifecycle } from '../src/reporting.ts';
 const schema: Schema = {
   type: 'object',
   properties: { id: { type: 'string', minLength: 1 }, count: { type: 'integer', minimum: 0 } },
@@ -59,6 +59,36 @@ test('reports are durable, idempotent, atomic and final', async () => {
         ...spec,
         progress: { type: 'boolean' },
       }),
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('rejections tell the agent how to fix the call', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'cdr-errors-'));
+  try {
+    const { run } = await reserve(root, 'errors', 'prompt', '/tmp', 'test', spec);
+    prepareReporting(root, run.id);
+    run.submittedAt = new Date().toISOString();
+    assert.throws(
+      () => report(root, run, 'append-records', 'r1', { records: [{ id: 'x', count: 1 }] }),
+      /top-level JSON array \[record, \.\.\.\], not \{records:\[\.\.\.\]\}/,
+    );
+    report(root, run, 'report', 'p1', { id: 'phase', count: 1 });
+    assert.throws(
+      () => report(root, run, 'report', 'p1', { id: 'phase', count: 2 }),
+      /Update id p1 was already used with a different payload; use a new update id/,
+    );
+    researcherLifecycle(root, run, 'researcher-start');
+    assert.throws(
+      () => report(root, run, 'finish', 'done', { id: 'result', count: 1 }),
+      /call researcher-stop, then finish/,
+    );
+    researcherLifecycle(root, run, 'stop');
+    assert.throws(
+      () => report(root, run, 'report', 'p2', { id: 'phase', count: 3 }),
+      /Run was cancelled; stop work, clean up, and call researcher-stop/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -173,13 +203,13 @@ test('cancellation seals reports while allowing a researcher to acknowledge stop
     researcherLifecycle(root, run, 'researcher-start');
     assert.throws(
       () => report(root, run, 'finish', 'finish-early', { id: 'result', count: 1 }),
-      /Researcher must stop/,
+      /call researcher-stop, then finish/,
     );
     assert.throws(() => researcherLifecycle(root, run, 'researcher-start'), /another researcher/);
     researcherLifecycle(root, run, 'stop');
     assert.throws(
       () => report(root, run, 'append-records', 'late', [{ id: 'listing', count: 1 }]),
-      /late reports/,
+      /Run was cancelled/,
     );
     assert.equal(snapshot(root, run.id).researcherActive, true);
     researcherLifecycle(root, run, 'researcher-stop');
