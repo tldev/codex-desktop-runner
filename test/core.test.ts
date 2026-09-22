@@ -134,7 +134,7 @@ test('reporting handoff selects its configured profile instead of desktop defaul
 });
 
 test('execution overrides reach desktop handoff without changing permission defaults', () => {
-  const settings = execution('gpt-5.6-luna', 'low');
+  const settings = execution('gpt-6-sol', 'low');
   const payload = turnPayload('thread', 'prompt', true, settings);
   assert.equal(payload.turnStart.request.model, settings.model);
   assert.equal(payload.turnStart.request.effort, settings.effort);
@@ -148,7 +148,7 @@ test('execution overrides reach desktop handoff without changing permission defa
 test('execution changes cannot reuse an existing request identity', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'cdr-model-'));
   try {
-    const settings = execution('gpt-5.6-luna', 'low');
+    const settings = execution('gpt-6-sol', 'low');
     const first = await reserve(dir, 'job', 'prompt', '/tmp', 'title', undefined, settings);
     assert.deepEqual(first.run.execution, settings);
     assert.equal(
@@ -171,10 +171,10 @@ test('actual execution metadata excludes bootstrap and later turns', () => {
     event('turn_context', { turn_id: 'bootstrap', model: 'bootstrap-model', effort: 'high' }),
     event('event_msg', { type: 'task_complete', turn_id: 'bootstrap' }),
     event('event_msg', { type: 'task_started', turn_id: 'real' }),
-    event('turn_context', { turn_id: 'real', model: 'gpt-5.6-luna', effort: 'low' }),
+    event('turn_context', { turn_id: 'real', model: 'gpt-6-sol', effort: 'low' }),
     event('event_msg', { type: 'task_complete', turn_id: 'real' }),
     event('event_msg', { type: 'task_started', turn_id: 'later' }),
     event('turn_context', { turn_id: 'later', model: 'other', effort: 'high' }),
   ].join('\n');
-  assert.deepEqual(inspect(run, text).actualExecution, { model: 'gpt-5.6-luna', effort: 'low' });
+  assert.deepEqual(inspect(run, text).actualExecution, { model: 'gpt-6-sol', effort: 'low' });
 });
