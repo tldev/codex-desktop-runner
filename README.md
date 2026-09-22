@@ -39,7 +39,7 @@ All operational commands return JSON. `--json` is accepted for explicit callers.
 ssh mini 'PATH=/opt/homebrew/bin:$PATH codex-desktop-runner start --cwd ~/projects/deal-tool --title sourcing --request-id sourcing-123 --prompt-file -' < mission.txt
 ```
 
-Pass `--model gpt-5.6-luna --effort low` to select execution settings for one run.
+Pass `--model gpt-6-sol --effort low` to select execution settings for one run.
 Omitted settings inherit runtime defaults. Availability depends on the signed-in account and
 runtime; unsupported combinations fail through the runtime rather than falling back locally.
 The settings apply to both the bootstrap turn and desktop handoff. Run JSON includes requested
