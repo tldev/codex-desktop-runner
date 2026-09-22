@@ -292,7 +292,7 @@ Commands (JSON output by default):
   start --prompt-file FILE --cwd DIR --title TITLE --request-id KEY
   start --job-file FILE --cwd DIR --title TITLE --request-id KEY
   report RUN_ID --json-file FILE --update-id KEY
-  append-records RUN_ID --json-file FILE --update-id KEY
+  append-records RUN_ID (--json-file FILE | --browser-output) --update-id KEY
   finish RUN_ID --json-file FILE --update-id KEY
   list
   active RUN_ID
@@ -306,6 +306,7 @@ Commands (JSON output by default):
 Environment: CDR_HOME, CDR_APP, CDR_CODEX, CDR_SOCKET, CODEX_HOME
 start accepts --model MODEL and --effort LEVEL; omitted settings inherit runtime defaults.
 start accepts --prompt-file - for stdin. A timeout does not cancel a task.
+report, append-records and finish accept --ack-only to print only the acknowledgment.
 Repeating start with the same request ID never submits another turn.`);
     return;
   }
