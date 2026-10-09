@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs, promisify } from 'node:util';
 import { execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile, realpath } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -27,7 +28,11 @@ const codexHome = process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
 const root = process.env.CDR_HOME ?? path.join(homedir(), '.local/state/codex-desktop-runner');
 const socket = process.env.CDR_SOCKET ?? path.join(codexHome, 'ipc/ipc.sock');
 const app = process.env.CDR_APP ?? '/Applications/ChatGPT.app';
-const binary = process.env.CDR_CODEX ?? path.join(app, 'Contents/Resources/codex');
+// The app has shipped its CLI at more than one path; use whichever this build has.
+const bundled = ['Contents/Resources/codex-cli/bin/codex', 'Contents/Resources/codex'].map((p) =>
+  path.join(app, p),
+);
+const binary = process.env.CDR_CODEX ?? bundled.find((p) => existsSync(p)) ?? bundled[0];
 const { values, positionals } = parseArgs({
   allowPositionals: true,
   options: {
