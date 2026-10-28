@@ -7,7 +7,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { IPC, turnPayload, object, stringField } from './ipc.ts';
+import { IPC, turnPayload, object, stringField, ATTACH_ATTEMPTS, attachFailure } from './ipc.ts';
 import { bootstrap } from './bootstrap.ts';
 import { reserve, save, load, list, type Run } from './store.ts';
 import { observe } from './observe.ts';
@@ -176,17 +176,22 @@ async function readPrompt(file: string): Promise<string> {
   for await (const chunk of process.stdin) text += chunk;
   return text;
 }
+
 async function attach(ipc: IPC, threadId: string): Promise<string> {
-  for (let attempt = 0; attempt < 8; attempt++) {
+  let last: unknown;
+  for (let attempt = 0; attempt < ATTACH_ATTEMPTS; attempt++) {
     try {
       return await owner(ipc, threadId);
-    } catch {
-      if (attempt === 7) throw new Error('Desktop attachment failed. Check project trust prompt.');
-      await sleep(2000);
+    } catch (error) {
+      last = error;
+      if (attempt < ATTACH_ATTEMPTS - 1) await sleep(2000);
     }
   }
-  throw new Error('Desktop attachment failed');
+  // The cause varies (app not running or not signed in, a pending trust prompt for a new
+  // workspace, an unresponsive app), so report what the app last said rather than one guess.
+  throw new Error(attachFailure(last));
 }
+
 async function waitForRun(initial: Run): Promise<Run> {
   let run = initial;
   const seconds = Number(values.timeout ?? 900);

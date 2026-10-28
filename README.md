@@ -6,7 +6,7 @@ Experimental: uses private desktop IPC. Tested protocol target is start-turn v2.
 
 ## Install
 
-Requires macOS, Node.js 24+, and a signed-in, running Codex desktop app. Google Chrome must be available for Chrome browser tasks. First use of a workspace may require accepting its desktop trust prompt.
+Requires macOS, Node.js 24+, and a signed-in, running Codex desktop app. Google Chrome must be available for Chrome browser tasks. First use of a workspace may require accepting its desktop trust prompt; a failed attach reports the app's last answer.
 
 ```sh
 npm ci
