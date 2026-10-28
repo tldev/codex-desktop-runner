@@ -185,3 +185,14 @@ export function stringField(value: Message, key: string): string {
     throw new Error(`Missing protocol string: ${key}`);
   return value[key];
 }
+
+export const ATTACH_ATTEMPTS = 8;
+
+/** Why attaching to a desktop thread failed: what the app last said, and what to check. */
+export function attachFailure(last: unknown): string {
+  const reason = last instanceof Error ? last.message : String(last ?? 'no response');
+  return (
+    `Desktop attachment failed after ${ATTACH_ATTEMPTS} tries: ${reason}. ` +
+    'Check the Codex app is running and signed in, and accept any trust prompt for this workspace.'
+  );
+}

@@ -6,7 +6,7 @@ import { mkdtemp, rm, chmod } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
-import { Decoder, encode, IPC, turnPayload } from '../src/ipc.ts';
+import { Decoder, encode, IPC, turnPayload, attachFailure } from '../src/ipc.ts';
 import { reserve, type Run } from '../src/store.ts';
 import { inspect } from '../src/observe.ts';
 
@@ -177,4 +177,11 @@ test('actual execution metadata excludes bootstrap and later turns', () => {
     event('turn_context', { turn_id: 'later', model: 'other', effort: 'high' }),
   ].join('\n');
   assert.deepEqual(inspect(run, text).actualExecution, { model: 'gpt-6-sol', effort: 'low' });
+});
+
+test('a failed attach reports what the app last said, not a guess', () => {
+  const message = attachFailure(new Error('Desktop returned no thread owner'));
+  assert.match(message, /after 8 tries: Desktop returned no thread owner/);
+  assert.match(message, /running and signed in/);
+  assert.match(attachFailure(undefined), /no response/);
 });
